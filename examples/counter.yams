@@ -1,0 +1,17 @@
+/*
+      counter.yams
+
+      prints 0 to 99
+*/
+
+'counter 0 define
+
+'loop (
+      counter 100 < (
+            counter tostr println
+            'counter counter 1 + define
+            loop
+      ) cond
+) macro
+
+loop
