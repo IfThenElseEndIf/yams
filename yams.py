@@ -201,8 +201,8 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
 
       SPECIAL = {
             "true", "false", "null", "argv", "read", "readln", "self", # 0
-            "do", ",", "'", "print", "println", "length", "exit", "goto", "delete", "boolean", "type", "isstr", "import", "wait", "tostr", # 1
-            "+", "-", "*", "/", "**", "<", "=<", ">", ">=", "=", "!=", "is", "define", "cond", "get", "error", "alias", "join", "function", # 2
+            "do", ",", "'", "print", "println", "length", "exit", "goto", "delete", "boolean", "type", "isstr", "import", "wait", "tostr", "tonum", "isnum", "not", # 1
+            "+", "-", "*", "/", "**", "<", "=<", ">", ">=", "=", "!=", "is", "define", "cond", "get", "error", "alias", "join", "function", "and", "or", # 2
             "if", "set", # 3
             "(", ")", "[", "]", "\"", "()", "[]", "\"\"", "/*", "/*", "/**/"
       }
@@ -318,7 +318,7 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
                         stack[-1].append(v)
                   elif word == "self":
                         stack[-1].append(parsed)
-                  elif word in {"do", ",", "'", "print", "println", "length", "exit", "goto", "delete", "boolean", "type", "isstr", "import", "wait", "tostr"}:
+                  elif word in {"do", ",", "'", "print", "println", "length", "exit", "goto", "delete", "boolean", "type", "isstr", "import", "wait", "tostr", "tonum", "isnum", "not"}:
                         if not stack[-1]:
                               err(f"'{word} expected 1 object but got 0"); return 1
                         x = stack[-1].pop()
@@ -404,7 +404,20 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
                                     stack[-1].append(tostr(x))
                               except TypeError as e:
                                     err(e); return 1
-                  elif word in {"+", "-", "*", "/", "**", ">", ">=", "<", "=<", "=", "!=", "is", "define", "cond", "get", "macro", "error", "alias", "join", "function"}:
+                        elif word == "tonum":
+                              if not isstr(x):
+                                    err(f"'{word} expected a string object (list of integers valid as characters) but got a {typeof(x) if typeof(x) != 'list' else 'non-string list'} object"); return 1
+                              r = number("".join(chr(c) for c in x))
+                              if r is None:
+                                    err("couldn't convert string to number"); return 1
+                              stack[-1].append(r)
+                        elif word == "isnum":
+                              if not isstr(x):
+                                    err(f"'{word} expected a string object (list of integers valid as characters) but got a {typeof(x) if typeof(x) != 'list' else 'non-string list'} object"); return 1
+                              stack[-1].append(boolean(number("".join(chr(c) for c in x)) is not None, variables, macros))
+                        elif word == "not":
+                              stack[-1].append(0 if boolean(x, variables, macros) == 1 else 1)
+                  elif word in {"+", "-", "*", "/", "**", ">", ">=", "<", "=<", "=", "!=", "is", "define", "cond", "get", "macro", "error", "alias", "join", "function", "split", "and", "or"}:
                         if len(stack[-1]) in {0, 1}:
                               err(f"'{word} expected 2 objects but got {len(stack[-1])} objects"); return 1
                         b, a = stack[-1].pop(), stack[-1].pop()
@@ -472,7 +485,7 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
                               macros[a] = b
                         elif word == "error":
                               if not isstr(a):
-                                    err(f"'{word} expected a string object (list of integers valid as characters) for its first argument but got a {typeof(x) if typeof(x) != 'list' else 'non-string list'} object"); return 1
+                                    err(f"'{word} expected a string object (list of integers valid as characters) but got a {typeof(x) if typeof(x) != 'list' else 'non-string list'} object"); return 1
                               if typeof(b) != "number":
                                     err(f"cannot exit with {typeof(x)} object"); return 1
                               if not isinstance(b, int):
@@ -504,6 +517,24 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
                               try: stack[-1].append(Function(a, b))
                               except Exception as exception:
                                     err(f"{exception}"); return 1
+                        elif word == "split":
+                              if typeof(a) != "list":
+                                    err(f"cannot split {typeof(a)} object"); return 1
+                              r = []
+                              cr = []
+                              for e in a:
+                                    if e == b:
+                                          if not cr: continue
+                                          r.append(cr)
+                                          cr = []
+                                    else:
+                                          cr.append(e)
+                              if cr: r.append(cr)
+                              stack[-1].append(r)
+                        elif word == "and":
+                              stack[-1].append(boolean(boolean(a, variables, macros) and boolean(b, variables, macros), variables, macros))
+                        elif word == "or":
+                              stack[-1].append(boolean(boolean(a, variables, macros) or boolean(b, variables, macros), variables, macros))
                   elif word in {"if", "set"}:
                         if len(stack[-1]) in {0, 1, 2}:
                               err(f"'{word} expected 3 objects but got {len(stack[-1])} object(s)"); return 1
@@ -545,6 +576,9 @@ def run(code, *argv, mute=False, stack=None, variables=None, macros=None, raiseo
                   elif word == "\"\"":
                         stack[-1].append(list())
                   else:
+                        for c in word:
+                              if not c.isprintable():
+                                    err(f"invalid character(s) ({c!r})"); return 1
                         err(f"unknown word '{word}"); return 1
 
             program_buffer = program_buffer[1:]
@@ -593,7 +627,6 @@ if __name__ == "__main__":
                   except KeyboardInterrupt:
                         exit(1)
                   except Exception as e:
-                        raise e
                         error(f"{e} (python error)")
                         exit(1)
       else:
