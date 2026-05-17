@@ -1,0 +1,12 @@
+'i 0 define
+'argvlen argv length define
+
+'printargv (
+      i argvlen < (
+            argv i get println
+            'i i 1 + define
+            printargv
+      ) cond
+) macro
+
+printargv
