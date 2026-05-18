@@ -2,10 +2,6 @@
 
 def parse(code):
       result = []
-#!/usr/bin/env python3
-
-def parse(code):
-      result = []
 
       for i, line in enumerate(code.splitlines()):
             if not line: continue
